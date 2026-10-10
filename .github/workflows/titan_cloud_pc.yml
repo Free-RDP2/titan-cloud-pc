@@ -89,7 +89,7 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 6. Configure dedicated RDP user TitanUser (Clean session, zero console lock) + update runneradmin
+        # 6. Configure dedicated RDP user M11 Dev-Tool (Clean session, zero console lock) + update runneradmin
         $plainPass = "TitanM11#2026"
         $secPass = ConvertTo-SecureString $plainPass -AsPlainText -Force
         
@@ -108,19 +108,19 @@ jobs:
             Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
         } catch {}
 
-        # Create Dedicated TitanUser
+        # Create Dedicated M11 Dev-Tool User
         try {
-            New-LocalUser -Name "TitanUser" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
+            New-LocalUser -Name "M11 Dev-Tool" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
         } catch {}
         try {
-            Set-LocalUser -Name "TitanUser" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
+            Set-LocalUser -Name "M11 Dev-Tool" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
         } catch {}
-        net user TitanUser "TitanM11#2026" /add /active:yes /expires:never
-        net localgroup "Remote Desktop Users" TitanUser /add
-        net localgroup "Administrators" TitanUser /add
+        net user "M11 Dev-Tool" "TitanM11#2026" /add /active:yes /expires:never
+        net localgroup "Remote Desktop Users" "M11 Dev-Tool" /add
+        net localgroup "Administrators" "M11 Dev-Tool" /add
         try {
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TitanUser" -ErrorAction SilentlyContinue
-            Add-LocalGroupMember -Group "Administrators" -Member "TitanUser" -ErrorAction SilentlyContinue
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "M11 Dev-Tool" -ErrorAction SilentlyContinue
+            Add-LocalGroupMember -Group "Administrators" -Member "M11 Dev-Tool" -ErrorAction SilentlyContinue
         } catch {}
         
         # 7. Start supporting RDS services & restart TermService
@@ -153,6 +153,7 @@ jobs:
         }
 
     # =========================================================================
+    # =========================================================================
     # STEP 2B: TITAN GAMING & 3D APP BYPASS ENGINE (ROBLOX, DIRECTX, AUDIO, DTRACE)
     # =========================================================================
     - name: 2B. Titan Gaming & App Hyper-Bypass Engine (Roblox, DirectX, Audiosrv, Anti-Cheat)
@@ -160,26 +161,26 @@ jobs:
         Write-Host ">>> Activating Titan Gaming & 3D App Hyper-Bypass Engine <<<" -ForegroundColor Green
         
         # 1. BYPASS ROBLOX / BYFRON ANTI-CHEAT: Disable Windows Server dtrace kernel debugger service
-        Write-Host "1/9 Disabling kernel dtrace service (Anti-cheat trigger bypass)..." -ForegroundColor Yellow
+        Write-Host "1/8 Disabling kernel dtrace service (Anti-cheat trigger bypass)..." -ForegroundColor Yellow
         sc.exe config dtrace start=disabled
         Stop-Service -Name "dtrace" -ErrorAction SilentlyContinue
         
         # 2. ENABLE WINDOWS AUDIO ENGINE: Fixes game launch crashes on Windows Server
-        Write-Host "2/9 Enabling Windows Audio Service (Audiosrv)..." -ForegroundColor Yellow
+        Write-Host "2/8 Enabling Windows Audio Service (Audiosrv)..." -ForegroundColor Yellow
         Set-Service -Name "Audiosrv" -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service -Name "Audiosrv" -ErrorAction SilentlyContinue
         Set-Service -Name "AudioEndpointBuilder" -StartupType Automatic -ErrorAction SilentlyContinue
         Start-Service -Name "AudioEndpointBuilder" -ErrorAction SilentlyContinue
         
         # 3. ENABLE WINDOWS SERVER MEDIA FOUNDATION (Critical for Roblox, Unity 3D, and Discord)
-        Write-Host "3/9 Installing Server-Media-Foundation (Resolves mfplat.dll / 3D game crashes)..." -ForegroundColor Yellow
+        Write-Host "3/8 Installing Server-Media-Foundation (Resolves mfplat.dll / 3D game crashes)..." -ForegroundColor Yellow
         try {
             Install-WindowsFeature -Name Server-Media-Foundation -ErrorAction SilentlyContinue | Out-Null
             dism.exe /online /enable-feature /featurename:Server-Media-Foundation /all /norestart /quiet 2>$null | Out-Null
         } catch {}
 
         # 4. UNLOCK DIRECTX / REMOTEFX 3D ACCELERATION IN RDP
-        Write-Host "4/9 Enabling Direct3D hardware & software acceleration in RDP..." -ForegroundColor Yellow
+        Write-Host "4/8 Enabling Direct3D hardware & software acceleration in RDP..." -ForegroundColor Yellow
         New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Force -ErrorAction SilentlyContinue | Out-Null
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "bEnumerateHWBeforeSW" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fEnableRemoteFX" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
@@ -187,7 +188,7 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations" -Name "Enable3d" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
         # 5. INSTALL VISUAL C++ 2015-2022 RUNTIMES (Resolves missing DLL crashes)
-        Write-Host "5/9 Installing Visual C++ 2015-2022 Redistributables..." -ForegroundColor Yellow
+        Write-Host "5/8 Installing Visual C++ 2015-2022 Redistributables..." -ForegroundColor Yellow
         try {
             curl.exe -fsSL "https://aka.ms/vs/17/release/vc_redist.x64.exe" -o "$env:TEMP\vc_x64.exe"
             Start-Process -FilePath "$env:TEMP\vc_x64.exe" -ArgumentList "/install /quiet /norestart" -Wait
@@ -196,19 +197,52 @@ jobs:
         } catch {}
 
         # 6. DISABLE IE ENHANCED SECURITY CONFIGURATION (Allows modern game launchers & web auth)
-        Write-Host "6/9 Disabling IE ESC for web game launchers..." -ForegroundColor Yellow
+        Write-Host "6/8 Disabling IE ESC for web game launchers..." -ForegroundColor Yellow
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-3749-11d2-995C-00C049429C55}" -Name "IsInstalled" -Value 0 -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-3749-11d2-995C-00C049429C55}" -Name "IsInstalled" -Value 0 -Force -ErrorAction SilentlyContinue
 
         # 7. EXPAND VIRTUAL PAGEFILE TO 16GB (32GB Total Committed Memory)
-        Write-Host "7/9 Expanding SSD Virtual Memory Pagefile..." -ForegroundColor Yellow
+        Write-Host "7/8 Expanding SSD Virtual Memory Pagefile..." -ForegroundColor Yellow
         try {
             Set-CimInstance -Query "Select * from Win32_PageFileSetting where Name like C:%" -Property @{InitialSize = 8192; MaximumSize = 16384} -ErrorAction SilentlyContinue
         } catch {}
 
-        # 8. CONFIGURE ROBLOX CLIENTSETTINGS & CREATE DESKTOP TOOLS
-        Write-Host "8/9 Deploying Desktop 1-Click Game Enablers & Instant Cloud Sync..." -ForegroundColor Yellow
-        $desktopPaths = @("C:\Users\TitanUser\Desktop", "C:\Users\runneradmin\Desktop", "C:\Users\Public\Desktop")
+        # 8. Pre-install Google Chrome Enterprise (Direct MSI - 100% Guaranteed Success)
+        Write-Host "8/8 Pre-installing Google Chrome Enterprise standalone MSI..." -ForegroundColor Yellow
+        try {
+            curl.exe -fsSL "https://dl.google.com/chrome/install/googlechromestandaloneenterprise64.msi" -o "$env:TEMP\chrome_enterprise.msi"
+            Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$env:TEMP\chrome_enterprise.msi`" /qn /norestart" -Wait
+            Write-Host "Google Chrome Enterprise installed 100% successfully!" -ForegroundColor Green
+        } catch {
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -Command winget install --id Google.Chrome --silent --accept-package-agreements --accept-source-agreements --scope machine" -WindowStyle Hidden
+        }
+
+    # =========================================================================
+    # STEP 2C: DEPLOY DESKTOP GAMING ENABLERS & CLEAN ROBLOX SETUP (ZERO 403 S3 ERROR)
+    # =========================================================================
+    - name: 2C. Deploy Desktop Gaming Enablers & Clean Roblox Setup
+      run: |
+        Write-Host ">>> Deploying Desktop Gaming Enablers & Pre-caching Roblox <<<" -ForegroundColor Green
+
+        # 1. Install Microsoft Edge WebView2 Evergreen Runtime (Essential for Roblox & Web Apps)
+        Write-Host "1/4 Installing Microsoft Edge WebView2 Evergreen Runtime..." -ForegroundColor Yellow
+        try {
+            curl.exe -fsSL "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -o "$env:TEMP\MicrosoftEdgeWebview2Setup.exe"
+            Start-Process -FilePath "$env:TEMP\MicrosoftEdgeWebview2Setup.exe" -ArgumentList "/silent /install" -Wait
+        } catch {}
+
+        # 2. Pre-cache official 64-bit Roblox Player Installer (Zero 403 Forbidden S3 Error)
+        Write-Host "2/4 Pre-caching official Roblox Player 64-bit Installer..." -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path "C:\TitanData" -Force -ErrorAction SilentlyContinue | Out-Null
+        try {
+            curl.exe -fsSL "https://setup.rbxcdn.com/RobloxPlayerInstaller.exe" -o "C:\TitanData\RobloxPlayerInstaller.exe"
+            Remove-Item -Path "HKCU:\Software\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "HKLM:\SOFTWARE\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
+        } catch {}
+
+        # 3. Create Desktop Shortcuts & 1-Click Game Enablers
+        Write-Host "3/4 Creating Desktop Shortcuts for M11 Dev-Tool and runneradmin..." -ForegroundColor Yellow
+        $desktopPaths = @("C:\Users\M11 Dev-Tool\Desktop", "C:\Users\runneradmin\Desktop", "C:\Users\Public\Desktop")
         $batLines = @(
             '@echo off',
             'title TITAN ROBLOX & 3D GAMES ENABLER (v1.11 QUANTUM BYPASS)',
@@ -287,7 +321,7 @@ jobs:
             '    copy /y "C:\TitanData\RobloxPlayerInstaller.exe" "%TEMP%\RobloxPlayerInstaller.exe" >nul 2>&1',
             ')',
             'if not exist "%TEMP%\RobloxPlayerInstaller.exe" (',
-            '    powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile(''https://setup.rbxcdn.com/RobloxPlayerInstaller.exe'', ''%TEMP%\RobloxPlayerInstaller.exe'')"',
+            '    powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('https://setup.rbxcdn.com/RobloxPlayerInstaller.exe', '%TEMP%\RobloxPlayerInstaller.exe')"',
             ')',
             'if not exist "%TEMP%\RobloxPlayerInstaller.exe" (',
             '    curl.exe -fsSL "https://setup.rbxcdn.com/RobloxPlayerInstaller.exe" -o "%TEMP%\RobloxPlayerInstaller.exe"',
@@ -412,7 +446,22 @@ jobs:
             $mesaBat | Out-File -FilePath "$d\🎮_INSTALL_MESA3D_OPENGL_ACCELERATOR.bat" -Encoding ascii -Force
         }
 
-        # Deploy Advanced Real-Time Persistence Daemon
+    # =========================================================================
+    # STEP 2D: DEPLOY DATA PERSISTENCE DAEMON & SECURITY RULES
+    # =========================================================================
+    - name: 2D. Deploy Data Persistence Daemon & Security Rules
+      run: |
+        Write-Host ">>> Deploying Data Persistence Daemon & Security Rules <<<" -ForegroundColor Green
+
+        # 1. Windows Defender Gaming Exclusions
+        try {
+            Add-MpPreference -ExclusionProcess "RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe", "RobloxStudioBeta.exe" -ErrorAction SilentlyContinue
+            Add-MpPreference -ExclusionPath "C:\Users\M11 Dev-Tool\AppData\Local\Roblox" -ErrorAction SilentlyContinue
+            Add-MpPreference -ExclusionPath "C:\Users\runneradmin\AppData\Local\Roblox" -ErrorAction SilentlyContinue
+            Add-MpPreference -ExclusionPath "C:\TitanData" -ErrorAction SilentlyContinue
+        } catch {}
+
+        # 2. Deploy Advanced Real-Time Persistence Daemon
         New-Item -ItemType Directory -Path "C:\TitanData" -Force -ErrorAction SilentlyContinue | Out-Null
         $daemonLines = @(
             'param([switch]$ForceNow, [switch]$Daemon)',
@@ -426,11 +475,11 @@ jobs:
             '    param([string]$reason = "Auto-Sync")',
             '    try {',
             '        if (-not (Test-Path $staging)) { New-Item -ItemType Directory -Path $staging -Force | Out-Null }',
-            '        if (Test-Path "C:\Users\TitanUser\Desktop") { robocopy "C:\Users\TitanUser\Desktop" "$staging\Desktop" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock desktop.ini *.bat | Out-Null }',
-            '        if (Test-Path "C:\Users\TitanUser\Documents") { robocopy "C:\Users\TitanUser\Documents" "$staging\Documents" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock | Out-Null }',
-            '        if (Test-Path "C:\Users\TitanUser\Downloads") { robocopy "C:\Users\TitanUser\Downloads" "$staging\Downloads" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock | Out-Null }',
-            '        if (Test-Path "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings") { robocopy "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings" "$staging\RobloxSettings" /E /R:1 /W:1 | Out-Null }',
-            '        $chromeDefault = "C:\Users\TitanUser\AppData\Local\Google\Chrome\User Data\Default"',
+            '        if (Test-Path "C:\Users\M11 Dev-Tool\Desktop") { robocopy "C:\Users\M11 Dev-Tool\Desktop" "$staging\Desktop" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock desktop.ini *.bat | Out-Null }',
+            '        if (Test-Path "C:\Users\M11 Dev-Tool\Documents") { robocopy "C:\Users\M11 Dev-Tool\Documents" "$staging\Documents" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock | Out-Null }',
+            '        if (Test-Path "C:\Users\M11 Dev-Tool\Downloads") { robocopy "C:\Users\M11 Dev-Tool\Downloads" "$staging\Downloads" /E /R:1 /W:1 /XF *.tmp *.crdownload *.lock | Out-Null }',
+            '        if (Test-Path "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings") { robocopy "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings" "$staging\RobloxSettings" /E /R:1 /W:1 | Out-Null }',
+            '        $chromeDefault = "C:\Users\M11 Dev-Tool\AppData\Local\Google\Chrome\User Data\Default"',
             '        if (Test-Path $chromeDefault) {',
             '            if (-not (Test-Path "$staging\ChromeData")) { New-Item -ItemType Directory -Path "$staging\ChromeData" -Force | Out-Null }',
             '            foreach ($f in @("Bookmarks", "History", "Preferences")) { if (Test-Path "$chromeDefault\$f") { Copy-Item "$chromeDefault\$f" "$staging\ChromeData\$f" -Force -ErrorAction SilentlyContinue } }',
@@ -456,7 +505,7 @@ jobs:
             '            Invoke-RestMethod -Uri $checkUrl -Headers $headers -Method Put -Body ($body | ConvertTo-Json) -ErrorAction SilentlyContinue | Out-Null',
             '            $sha256 | Out-File -FilePath $hashPath -Encoding ascii -Force',
             '            $statusMsg = "Last Cloud Sync: $timestamp | Reason: $reason | Status: 100% Secured"',
-            '            $statusMsg | Out-File -FilePath "C:\Users\TitanUser\Desktop\LAST_BACKUP_STATUS.txt" -Encoding utf8 -Force',
+            '            $statusMsg | Out-File -FilePath "C:\Users\M11 Dev-Tool\Desktop\LAST_BACKUP_STATUS.txt" -Encoding utf8 -Force',
             '            Write-Host "[TITAN-SYNC SUCCESS] $statusMsg" -ForegroundColor Green',
             '        }',
             '    } catch {}',
@@ -478,44 +527,9 @@ jobs:
         )
         $daemonLines | Out-File -FilePath "C:\TitanData\titan_persistent_daemon.ps1" -Encoding ascii -Force
 
-        # Windows Defender Gaming Exclusions
-        try {
-            Add-MpPreference -ExclusionProcess "RobloxPlayerBeta.exe", "RobloxPlayerLauncher.exe", "RobloxStudioBeta.exe" -ErrorAction SilentlyContinue
-            Add-MpPreference -ExclusionPath "C:\Users\TitanUser\AppData\Local\Roblox" -ErrorAction SilentlyContinue
-            Add-MpPreference -ExclusionPath "C:\Users\runneradmin\AppData\Local\Roblox" -ErrorAction SilentlyContinue
-            Add-MpPreference -ExclusionPath "C:\TitanData" -ErrorAction SilentlyContinue
-        } catch {}
-
-        # 9. Pre-install Google Chrome Enterprise (Direct MSI - 100% Guaranteed Success)
-        Write-Host "9/12 Pre-installing Google Chrome Enterprise standalone MSI..." -ForegroundColor Yellow
-        try {
-            curl.exe -fsSL "https://dl.google.com/chrome/install/googlechromestandaloneenterprise64.msi" -o "$env:TEMP\chrome_enterprise.msi"
-            Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$env:TEMP\chrome_enterprise.msi`" /qn /norestart" -Wait
-            Write-Host "Google Chrome Enterprise installed 100% successfully!" -ForegroundColor Green
-        } catch {
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -Command winget install --id Google.Chrome --silent --accept-package-agreements --accept-source-agreements --scope machine" -WindowStyle Hidden
-        }
-
-        # 10. Install Microsoft Edge WebView2 Evergreen Runtime (Essential for Roblox & Web Apps)
-        Write-Host "10/12 Installing Microsoft Edge WebView2 Evergreen Runtime..." -ForegroundColor Yellow
-        try {
-            curl.exe -fsSL "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -o "$env:TEMP\MicrosoftEdgeWebview2Setup.exe"
-            Start-Process -FilePath "$env:TEMP\MicrosoftEdgeWebview2Setup.exe" -ArgumentList "/silent /install" -Wait
-        } catch {}
-
-        # 11. Pre-cache official 64-bit Roblox Player Installer (Zero 403 Forbidden S3 Error)
-        Write-Host "11/12 Pre-caching official Roblox Player 64-bit Installer..." -ForegroundColor Yellow
-        try {
-            curl.exe -fsSL "https://setup.rbxcdn.com/RobloxPlayerInstaller.exe" -o "C:\TitanData\RobloxPlayerInstaller.exe"
-            Remove-Item -Path "HKCU:\Software\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path "HKLM:\SOFTWARE\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
-        } catch {}
-
-        # 12. Start Real-Time Persistence Daemon in background
-        Write-Host "12/12 Activating 24/7 Real-Time Data Persistence Daemon..." -ForegroundColor Green
+        # 3. Activate 24/7 Real-Time Data Persistence Daemon
+        Write-Host "Activating 24/7 Real-Time Data Persistence Daemon..." -ForegroundColor Green
         Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File C:\TitanData\titan_persistent_daemon.ps1 -Daemon" -WindowStyle Hidden
-
-
     # =========================================================================
     # STEP 3: RESTORE USER PERSISTENT STATE (DESKTOP FILES, DOCUMENTS, APPS)
     # =========================================================================
@@ -532,41 +546,41 @@ jobs:
           $fileMeta = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction SilentlyContinue
           
           if ($fileMeta -and $fileMeta.download_url) {
-            Write-Host "Found cloud state backup! Restoring user files to TitanUser..." -ForegroundColor Green
+            Write-Host "Found cloud state backup! Restoring user files to M11 Dev-Tool..." -ForegroundColor Green
             curl.exe -fsSL -o "cloud_state.zip" $fileMeta.download_url
             
-            # Ensure target directories exist for TitanUser
+            # Ensure target directories exist for M11 Dev-Tool
             $titanDirs = @(
-              "C:\Users\TitanUser\Desktop",
-              "C:\Users\TitanUser\Documents",
-              "C:\Users\TitanUser\Downloads",
-              "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings"
+              "C:\Users\M11 Dev-Tool\Desktop",
+              "C:\Users\M11 Dev-Tool\Documents",
+              "C:\Users\M11 Dev-Tool\Downloads",
+              "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings"
             )
             foreach ($d in $titanDirs) {
               if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction SilentlyContinue | Out-Null }
             }
 
-            # Extract and restore to TitanUser (Active RDP User)
+            # Extract and restore to M11 Dev-Tool (Active RDP User)
             $stagingRestore = "C:\TitanData\staging_restore"
             if (Test-Path $stagingRestore) { Remove-Item $stagingRestore -Recurse -Force -ErrorAction SilentlyContinue }
             Expand-Archive -Path "cloud_state.zip" -DestinationPath $stagingRestore -Force -ErrorAction SilentlyContinue
             
-            if (Test-Path "$stagingRestore\Desktop") { robocopy "$stagingRestore\Desktop" "C:\Users\TitanUser\Desktop" /E /R:1 /W:1 | Out-Null }
-            if (Test-Path "$stagingRestore\Documents") { robocopy "$stagingRestore\Documents" "C:\Users\TitanUser\Documents" /E /R:1 /W:1 | Out-Null }
-            if (Test-Path "$stagingRestore\Downloads") { robocopy "$stagingRestore\Downloads" "C:\Users\TitanUser\Downloads" /E /R:1 /W:1 | Out-Null }
-            if (Test-Path "$stagingRestore\RobloxSettings") { robocopy "$stagingRestore\RobloxSettings" "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings" /E /R:1 /W:1 | Out-Null }
+            if (Test-Path "$stagingRestore\Desktop") { robocopy "$stagingRestore\Desktop" "C:\Users\M11 Dev-Tool\Desktop" /E /R:1 /W:1 | Out-Null }
+            if (Test-Path "$stagingRestore\Documents") { robocopy "$stagingRestore\Documents" "C:\Users\M11 Dev-Tool\Documents" /E /R:1 /W:1 | Out-Null }
+            if (Test-Path "$stagingRestore\Downloads") { robocopy "$stagingRestore\Downloads" "C:\Users\M11 Dev-Tool\Downloads" /E /R:1 /W:1 | Out-Null }
+            if (Test-Path "$stagingRestore\RobloxSettings") { robocopy "$stagingRestore\RobloxSettings" "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings" /E /R:1 /W:1 | Out-Null }
             if (Test-Path "$stagingRestore\ChromeData") {
-                $chromeDst = "C:\Users\TitanUser\AppData\Local\Google\Chrome\User Data\Default"
+                $chromeDst = "C:\Users\M11 Dev-Tool\AppData\Local\Google\Chrome\User Data\Default"
                 if (-not (Test-Path $chromeDst)) { New-Item -ItemType Directory -Path $chromeDst -Force | Out-Null }
                 robocopy "$stagingRestore\ChromeData" $chromeDst /E /R:1 /W:1 | Out-Null
             }
 
             # Direct fallback extraction for legacy backups
-            Expand-Archive -Path "cloud_state.zip" -DestinationPath "C:\Users\TitanUser" -Force -ErrorAction SilentlyContinue
+            Expand-Archive -Path "cloud_state.zip" -DestinationPath "C:\Users\M11 Dev-Tool" -Force -ErrorAction SilentlyContinue
             Expand-Archive -Path "cloud_state.zip" -DestinationPath "C:\Users\runneradmin" -Force -ErrorAction SilentlyContinue
 
-            # Grant full ownership and permissions to TitanUser
-            icacls "C:\Users\TitanUser" /grant "TitanUser:(OI)(CI)F" /t /q 2>$null | Out-Null
+            # Grant full ownership and permissions to M11 Dev-Tool
+            icacls "C:\Users\M11 Dev-Tool" /grant "M11 Dev-Tool:(OI)(CI)F" /t /q 2>$null | Out-Null
             Write-Host "User files, desktop items, and game state restored 100%!" -ForegroundColor Green
           } else {
             Write-Host "No prior cloud backup found. Initializing fresh clean workspace." -ForegroundColor Yellow
@@ -621,7 +635,7 @@ jobs:
         Write-Host ">>>TITAN_ENDPOINT_START<<<tcp://$($ip):3389>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
         Write-Host "TITAN_PROVIDER: TAILSCALE (60 FPS WireGuard P2P)" -ForegroundColor Cyan
         Write-Host "TITAN_IP: $ip" -ForegroundColor Yellow
-        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: M11 Dev-Tool" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
@@ -630,7 +644,7 @@ jobs:
           provider = "tailscale"
           host = $ip
           port = "3389"
-          username = "TitanUser"
+          username = "M11 Dev-Tool"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
@@ -685,7 +699,7 @@ jobs:
         Write-Host "TITAN_PROVIDER: PINGGY (Direct Public Tunnel - No Client Needed)" -ForegroundColor Cyan
         Write-Host "TITAN_HOST: $pHost" -ForegroundColor Yellow
         Write-Host "TITAN_PORT: $pPort" -ForegroundColor Yellow
-        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: M11 Dev-Tool" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
@@ -694,7 +708,7 @@ jobs:
           provider = "pinggy"
           host = $pHost
           port = $pPort
-          username = "TitanUser"
+          username = "M11 Dev-Tool"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
@@ -742,7 +756,7 @@ jobs:
 
         Write-Host "======================================================" -ForegroundColor Cyan
         Write-Host ">>>TITAN_ENDPOINT_START<<<$publicUrl>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
-        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: M11 Dev-Tool" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Cyan
 
@@ -753,7 +767,7 @@ jobs:
           provider = "ngrok"
           host = $parts[0]
           port = $parts[1]
-          username = "TitanUser"
+          username = "M11 Dev-Tool"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
@@ -792,13 +806,13 @@ jobs:
           # Periodic Auto-Backup to Cloud (Every 5 Minutes Continuous Sync)
           if (($elapsed - $lastBackup) -ge $backupInterval) {
             $lastBackup = $elapsed
-            Write-Host "Continuous State Sync: Preserving user files to Cloud (TitanUser + runneradmin)..." -ForegroundColor Cyan
+            Write-Host "Continuous State Sync: Preserving user files to Cloud (M11 Dev-Tool + runneradmin)..." -ForegroundColor Cyan
             try {
               $candPaths = @(
-                "C:\Users\TitanUser\Desktop",
-                "C:\Users\TitanUser\Documents",
-                "C:\Users\TitanUser\Downloads",
-                "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings",
+                "C:\Users\M11 Dev-Tool\Desktop",
+                "C:\Users\M11 Dev-Tool\Documents",
+                "C:\Users\M11 Dev-Tool\Downloads",
+                "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings",
                 "C:\Users\runneradmin\Desktop",
                 "C:\Users\runneradmin\Documents"
               )
@@ -843,7 +857,7 @@ jobs:
             try {
               # Emergency pre-handover flush
               $flushPaths = @()
-              foreach ($cp in @("C:\Users\TitanUser\Desktop", "C:\Users\TitanUser\Documents", "C:\Users\TitanUser\Downloads", "C:\Users\TitanUser\AppData\Local\Roblox\ClientSettings")) {
+              foreach ($cp in @("C:\Users\M11 Dev-Tool\Desktop", "C:\Users\M11 Dev-Tool\Documents", "C:\Users\M11 Dev-Tool\Downloads", "C:\Users\M11 Dev-Tool\AppData\Local\Roblox\ClientSettings")) {
                 if (Test-Path $cp) { $flushPaths += $cp }
               }
               if ($flushPaths.Count -gt 0) {
