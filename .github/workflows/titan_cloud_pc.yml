@@ -89,24 +89,39 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 6. Set runneradmin user credentials & add to RDP groups (Dual Engine PowerShell + Net)
+        # 6. Configure dedicated RDP user TitanUser (Clean session, zero console lock) + update runneradmin
         $plainPass = "TitanM11#2026"
         $secPass = ConvertTo-SecureString $plainPass -AsPlainText -Force
-        try {
-            Set-LocalUser -Name "runneradmin" -Password $secPass -ErrorAction SilentlyContinue
-        } catch {}
+        
+        # Configure runneradmin
+        try { Set-LocalUser -Name "runneradmin" -Password $secPass -ErrorAction SilentlyContinue } catch {}
         try {
             $userObj = [ADSI]"WinNT://localhost/runneradmin,user"
             $userObj.SetPassword($plainPass)
             $userObj.SetInfo()
         } catch {}
         net user runneradmin "TitanM11#2026" /active:yes
+        net localgroup "Remote Desktop Users" runneradmin /add
+        net localgroup "Administrators" runneradmin /add
         try {
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
             Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
         } catch {}
-        net localgroup "Remote Desktop Users" runneradmin /add
-        net localgroup "Administrators" runneradmin /add
+
+        # Create Dedicated TitanUser
+        try {
+            New-LocalUser -Name "TitanUser" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            Set-LocalUser -Name "TitanUser" -Password $secPass -AccountNeverExpires -ErrorAction SilentlyContinue
+        } catch {}
+        net user TitanUser "TitanM11#2026" /add /active:yes /expires:never
+        net localgroup "Remote Desktop Users" TitanUser /add
+        net localgroup "Administrators" TitanUser /add
+        try {
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TitanUser" -ErrorAction SilentlyContinue
+            Add-LocalGroupMember -Group "Administrators" -Member "TitanUser" -ErrorAction SilentlyContinue
+        } catch {}
         
         # 7. Start supporting RDS services & restart TermService
         Set-Service -Name "SessionEnv" -StartupType Automatic -ErrorAction SilentlyContinue
@@ -210,7 +225,7 @@ jobs:
         Write-Host ">>>TITAN_ENDPOINT_START<<<tcp://$($ip):3389>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
         Write-Host "TITAN_PROVIDER: TAILSCALE (60 FPS WireGuard P2P)" -ForegroundColor Cyan
         Write-Host "TITAN_IP: $ip" -ForegroundColor Yellow
-        Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
@@ -219,7 +234,7 @@ jobs:
           provider = "tailscale"
           host = $ip
           port = "3389"
-          username = "runneradmin"
+          username = "TitanUser"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
@@ -271,7 +286,7 @@ jobs:
         Write-Host "TITAN_PROVIDER: PINGGY (Direct Public Tunnel - No Client Needed)" -ForegroundColor Cyan
         Write-Host "TITAN_HOST: $pHost" -ForegroundColor Yellow
         Write-Host "TITAN_PORT: $pPort" -ForegroundColor Yellow
-        Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
@@ -280,7 +295,7 @@ jobs:
           provider = "pinggy"
           host = $pHost
           port = $pPort
-          username = "runneradmin"
+          username = "TitanUser"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
@@ -328,7 +343,7 @@ jobs:
 
         Write-Host "======================================================" -ForegroundColor Cyan
         Write-Host ">>>TITAN_ENDPOINT_START<<<$publicUrl>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
-        Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: TitanUser" -ForegroundColor Yellow
         Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Cyan
 
@@ -339,7 +354,7 @@ jobs:
           provider = "ngrok"
           host = $parts[0]
           port = $parts[1]
-          username = "runneradmin"
+          username = "TitanUser"
           password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
