@@ -1,0 +1,102 @@
+name: Titan Cloud PC 16GB Datacenter
+
+on:
+  workflow_dispatch:
+    inputs:
+      ngrok_token:
+        description: 'Ngrok Auth Token'
+        required: true
+      session_hours:
+        description: 'Session Duration (Hours)'
+        required: false
+        default: '6'
+
+jobs:
+  run-cloud-pc:
+    runs-on: windows-latest
+    timeout-minutes: 360 # 6 hours maximum limit on GitHub Actions
+
+    steps:
+    - name: 1. Configure High-Performance Windows Cloud Environment
+      run: |
+        Write-Host "======================================================" -ForegroundColor Cyan
+        Write-Host "  TITAN CLOUD WORKSTATION (MICROSOFT AZURE RUNNER)" -ForegroundColor Green
+        Write-Host "  Allocated Hardware: 4 vCPUs / 16GB RAM / 256GB SSD" -ForegroundColor Yellow
+        Write-Host "======================================================" -ForegroundColor Cyan
+
+    - name: 2. Enable Remote Desktop Service (Terminal Server)
+      run: |
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+        
+        # Configure runneradmin user with high privileges
+        net user runneradmin "TitanCloud2026!" /add
+        net localgroup administrators runneradmin /add
+        Write-Host "RDP Terminal Service Enabled on Port 3389." -ForegroundColor Green
+
+    - name: 3. Download and Launch Ngrok Tunnel
+      run: |
+        Write-Host "Downloading Ngrok v3 Windows Engine..."
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "."
+        
+        Write-Host "Authenticating Ngrok with provided token..."
+        .\ngrok.exe config add-authtoken "${{ github.event.inputs.ngrok_token }}"
+        
+        Write-Host "Starting TCP Tunnel on Port 3389..."
+        Start-Process -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389" -NoNewWindow
+        Start-Sleep -Seconds 8
+
+    - name: 4. Extract Public Endpoint & Output Artifact
+      run: |
+        try {
+          $tunnels = (Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels").tunnels
+          $publicUrl = $tunnels[0].public_url
+          Write-Host "======================================================" -ForegroundColor Cyan
+          Write-Host ">>>TITAN_ENDPOINT_START<<<$publicUrl>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
+          Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
+          Write-Host "TITAN_PASS: TitanCloud2026!" -ForegroundColor Yellow
+          Write-Host "======================================================" -ForegroundColor Cyan
+
+          $clean = $publicUrl -replace "tcp://",""
+          $parts = $clean -split ":"
+          $hostName = $parts[0]
+          $portNum = $parts[1]
+
+          $info = @{
+            endpoint = $publicUrl
+            host = $hostName
+            port = $portNum
+            username = "runneradmin"
+            password = "TitanCloud2026!"
+            specs = "16GB RAM / 4 vCPUs / 256GB SSD"
+            status = "ONLINE"
+          } | ConvertTo-Json
+
+          $info | Out-File -FilePath "titan_connect.json" -Encoding utf8
+        } catch {
+          Write-Error "Failed to extract Ngrok endpoint. Check if the token is valid."
+          exit 1
+        }
+
+    - name: 5. Upload Connection Artifact for Titan Client App
+      uses: actions/upload-artifact@v4
+      with:
+        name: titan-endpoint
+        path: titan_connect.json
+        retention-days: 1
+
+    - name: 6. Keep Session Alive (Up to 6 Hours)
+      run: |
+        Write-Host "Titan Cloud PC is now actively running in Microsoft Datacenter."
+        Write-Host "Connect using Titan Desktop Client Application."
+        $maxSeconds = 21600 # 6 hours
+        $elapsed = 0
+        while ($elapsed -lt $maxSeconds) {
+          Start-Sleep -Seconds 60
+          $elapsed += 60
+          if ($elapsed % 600 -eq 0) {
+            Write-Host "Cloud PC Heartbeat: $elapsed / $maxSeconds seconds elapsed."
+          }
+        }
