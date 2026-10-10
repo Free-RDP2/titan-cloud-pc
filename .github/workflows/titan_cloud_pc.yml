@@ -61,18 +61,19 @@ jobs:
         Write-Host "  License Signature: TITAN-M11-ENT-2026-V011-8F4C-9B21-E37A-992F" -ForegroundColor Magenta
         Write-Host "======================================================" -ForegroundColor Cyan
 
-    - name: 2. Unlock 60 FPS RDP & Disable NLA Restrictions
+    - name: 2. Unlock 60 FPS RDP, Disable Firewall & Disable NLA Restrictions
       run: |
-        # 1. Enable RDP Terminal Server in Windows Registry
+        # 1. TOTALLY DISABLE WINDOWS FIREWALL ON THE RUNNER (Eliminates ALL Port/Profile Blocks!)
+        Write-Host "Disabling Windows Firewall on all profiles..." -ForegroundColor Yellow
+        Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+        netsh advfirewall set allprofiles state off
+        
+        # 2. Enable RDP in Registry
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         
-        # 2. DISABLE NLA (Network Level Authentication) TO PREVENT CONNECTION REFUSAL ON CLIENTS
+        # 3. DISABLE NLA (Network Level Authentication)
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 1
-        
-        # 3. Explicitly Open Windows Firewall for TCP Port 3389 on ALL Profiles
-        netsh advfirewall firewall add rule name="Allow RDP 3389" dir=in action=allow protocol=TCP localport=3389
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
         
         # 4. UNLOCK 60 FPS IN RDP (Default Windows RDP is capped at 30 FPS!)
         New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Force -ErrorAction SilentlyContinue | Out-Null
@@ -87,16 +88,32 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 6. Ensure Remote Desktop Service is Running
-        Set-Service -Name "TermService" -StartupType Automatic -ErrorAction SilentlyContinue
-        Start-Service -Name "TermService" -ErrorAction SilentlyContinue
-        
-        # 7. Set runneradmin user credentials safely
+        # 6. Set runneradmin user credentials safely
         $Password = ConvertTo-SecureString "TitanCloud2026!" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password -ErrorAction SilentlyContinue
         net user runneradmin "TitanCloud2026!" /add 2>$null
         net user runneradmin "TitanCloud2026!"
-        Write-Host "RDP 60 FPS Terminal Service successfully unlocked (NLA Disabled)." -ForegroundColor Green
+        net localgroup Administrators runneradmin /add 2>$null
+        
+        # 7. Restart TermService to bind port 3389 with new unauthenticated 60 FPS settings
+        Set-Service -Name "TermService" -StartupType Automatic -ErrorAction SilentlyContinue
+        Restart-Service -Name "TermService" -Force -ErrorAction SilentlyContinue
+        
+        # 8. Loop-check that port 3389 is actively listening locally
+        $listening = $false
+        for ($i = 0; $i -lt 15; $i++) {
+            $tcp = Test-NetConnection -ComputerName 127.0.0.1 -Port 3389 -WarningAction SilentlyContinue
+            if ($tcp.TcpTestSucceeded) {
+                Write-Host ">>> Port 3389 is actively LISTENING and verified locally! <<<" -ForegroundColor Green
+                $listening = $true
+                break
+            }
+            Start-Sleep -Seconds 2
+        }
+        if (-not $listening) {
+            Write-Warning "TermService listening check timed out, attempting force start..."
+            Start-Service -Name "TermService" -ErrorAction SilentlyContinue
+        }
 
     # =========================================================================
     # STEP 3: RESTORE USER PERSISTENT STATE (DESKTOP FILES, DOCUMENTS, APPS)
@@ -149,8 +166,11 @@ jobs:
 
         Write-Host "Authenticating with Tailscale WireGuard Network..." -ForegroundColor Cyan
         $authKey = "${{ github.event.inputs.tunnel_token }}".Trim()
-        & $tailscalePath up --authkey=$authKey --hostname=titan-cloud-pc --accept-routes --reset
+        & $tailscalePath up --authkey=$authKey --hostname=titan-cloud-pc --accept-routes --reset --shields-up=false
         Start-Sleep -Seconds 6
+
+        # Set Tailscale network adapter to Private
+        Get-NetConnectionProfile -InterfaceAlias "Tailscale*" -ErrorAction SilentlyContinue | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue
 
         $ip = ""
         for ($i = 0; $i -lt 15; $i++) {
@@ -192,7 +212,10 @@ jobs:
       if: github.event.inputs.tunnel_provider == 'pinggy'
       run: |
         Write-Host "Starting Pinggy Instant Public TCP Tunnel..." -ForegroundColor Cyan
-        Start-Process -FilePath "ssh" -ArgumentList "-p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -R0:localhost:3389 tcp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -RedirectStandardError "pinggy_err.log" -NoNewWindow
+        $pToken = "${{ github.event.inputs.tunnel_token }}".Trim()
+        $sshTarget = if ($pToken) { "$pToken+tcp@a.pinggy.io" } else { "tcp@a.pinggy.io" }
+        Write-Host "Connecting to Pinggy via target: $sshTarget" -ForegroundColor Yellow
+        Start-Process -FilePath "ssh" -ArgumentList "-p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -R0:localhost:3389 $sshTarget" -RedirectStandardOutput "pinggy.log" -RedirectStandardError "pinggy_err.log" -NoNewWindow
         Start-Sleep -Seconds 8
 
         $publicUrl = $null
