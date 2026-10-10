@@ -88,12 +88,17 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 6. Set runneradmin user credentials safely
-        $Password = ConvertTo-SecureString "TitanCloud2026!" -AsPlainText -Force
-        Set-LocalUser -Name "runneradmin" -Password $Password -ErrorAction SilentlyContinue
-        net user runneradmin "TitanCloud2026!" /add 2>$null
-        net user runneradmin "TitanCloud2026!"
-        net localgroup Administrators runneradmin /add 2>$null
+        # 6. Set runneradmin user credentials safely via pure PowerShell & ADSI (No legacy net.exe)
+        $plainPass = "TitanM11#2026"
+        $secPass = ConvertTo-SecureString $plainPass -AsPlainText -Force
+        try {
+            Set-LocalUser -Name "runneradmin" -Password $secPass -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            $userObj = [ADSI]"WinNT://localhost/runneradmin,user"
+            $userObj.SetPassword($plainPass)
+            $userObj.SetInfo()
+        } catch {}
         
         # 7. Restart TermService to bind port 3389 with new unauthenticated 60 FPS settings
         Set-Service -Name "TermService" -StartupType Automatic -ErrorAction SilentlyContinue
@@ -189,7 +194,7 @@ jobs:
         Write-Host "TITAN_PROVIDER: TAILSCALE (60 FPS WireGuard P2P)" -ForegroundColor Cyan
         Write-Host "TITAN_IP: $ip" -ForegroundColor Yellow
         Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
-        Write-Host "TITAN_PASS: TitanCloud2026!" -ForegroundColor Yellow
+        Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
         $info = @{
@@ -198,7 +203,7 @@ jobs:
           host = $ip
           port = "3389"
           username = "runneradmin"
-          password = "TitanCloud2026!"
+          password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
           author = "M11 Dev - Mohamed"
@@ -250,7 +255,7 @@ jobs:
         Write-Host "TITAN_HOST: $pHost" -ForegroundColor Yellow
         Write-Host "TITAN_PORT: $pPort" -ForegroundColor Yellow
         Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
-        Write-Host "TITAN_PASS: TitanCloud2026!" -ForegroundColor Yellow
+        Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Green
 
         $info = @{
@@ -259,7 +264,7 @@ jobs:
           host = $pHost
           port = $pPort
           username = "runneradmin"
-          password = "TitanCloud2026!"
+          password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
           author = "M11 Dev - Mohamed"
@@ -307,7 +312,7 @@ jobs:
         Write-Host "======================================================" -ForegroundColor Cyan
         Write-Host ">>>TITAN_ENDPOINT_START<<<$publicUrl>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
         Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
-        Write-Host "TITAN_PASS: TitanCloud2026!" -ForegroundColor Yellow
+        Write-Host "TITAN_PASS: TitanM11#2026" -ForegroundColor Yellow
         Write-Host "======================================================" -ForegroundColor Cyan
 
         $clean = $publicUrl -replace "tcp://",""
@@ -318,7 +323,7 @@ jobs:
           host = $parts[0]
           port = $parts[1]
           username = "runneradmin"
-          password = "TitanCloud2026!"
+          password = "TitanM11#2026"
           specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
           status = "ONLINE"
           author = "M11 Dev - Mohamed"
