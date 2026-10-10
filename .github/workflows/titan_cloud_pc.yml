@@ -20,12 +20,13 @@ on:
   workflow_dispatch:
     inputs:
       tunnel_provider:
-        description: 'Tunnel Provider (tailscale or ngrok)'
+        description: 'Tunnel Provider (tailscale, pinggy, or ngrok)'
         required: true
         default: 'tailscale'
       tunnel_token:
-        description: 'Auth Token / Key (Tailscale Auth Key or Ngrok Token)'
-        required: true
+        description: 'Auth Token / Key (Tailscale Key, Ngrok Token, or empty for Pinggy)'
+        required: false
+        default: ''
       session_hours:
         description: 'Session Duration in Hours'
         required: false
@@ -60,19 +61,25 @@ jobs:
         Write-Host "  License Signature: TITAN-M11-ENT-2026-V011-8F4C-9B21-E37A-992F" -ForegroundColor Magenta
         Write-Host "======================================================" -ForegroundColor Cyan
 
-    - name: 2. Unlock 60 FPS RDP & Configure AVC444 Low-Bandwidth Acceleration
+    - name: 2. Unlock 60 FPS RDP & Disable NLA Restrictions
       run: |
         # 1. Enable RDP Terminal Server in Windows Registry
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
         
-        # 2. UNLOCK 60 FPS IN RDP (Default Windows RDP is capped at 30 FPS!)
+        # 2. DISABLE NLA (Network Level Authentication) TO PREVENT CONNECTION REFUSAL ON CLIENTS
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 1
+        
+        # 3. Explicitly Open Windows Firewall for TCP Port 3389 on ALL Profiles
+        netsh advfirewall firewall add rule name="Allow RDP 3389" dir=in action=allow protocol=TCP localport=3389
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+        
+        # 4. UNLOCK 60 FPS IN RDP (Default Windows RDP is capped at 30 FPS!)
         New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Force -ErrorAction SilentlyContinue | Out-Null
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations" -Name "DWMFrameRate" -Value 60 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "DWMFrameRate" -Value 60 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 3. Hardware Video Acceleration (RemoteFX & AVC444 H.264)
+        # 5. Hardware Video Acceleration (RemoteFX & AVC444 H.264)
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "SelectTransportProtocol" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fEnableRemoteFX" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "RemoteFX_AVC444" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
@@ -80,12 +87,16 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 4. Set runneradmin user credentials safely
+        # 6. Ensure Remote Desktop Service is Running
+        Set-Service -Name "TermService" -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name "TermService" -ErrorAction SilentlyContinue
+        
+        # 7. Set runneradmin user credentials safely
         $Password = ConvertTo-SecureString "TitanCloud2026!" -AsPlainText -Force
         Set-LocalUser -Name "runneradmin" -Password $Password -ErrorAction SilentlyContinue
         net user runneradmin "TitanCloud2026!" /add 2>$null
         net user runneradmin "TitanCloud2026!"
-        Write-Host "RDP 60 FPS Terminal Service successfully unlocked and configured." -ForegroundColor Green
+        Write-Host "RDP 60 FPS Terminal Service successfully unlocked (NLA Disabled)." -ForegroundColor Green
 
     # =========================================================================
     # STEP 3: RESTORE USER PERSISTENT STATE (DESKTOP FILES, DOCUMENTS, APPS)
@@ -120,7 +131,7 @@ jobs:
     - name: 4A. Setup Tailscale WireGuard Tunnel (Zero Credit Card)
       if: github.event.inputs.tunnel_provider == 'tailscale'
       run: |
-        Write-Host "Installing Tailscale for Windows via direct high-speed installer..." -ForegroundColor Cyan
+        Write-Host "Installing Tailscale for Windows via direct installer..." -ForegroundColor Cyan
         curl.exe -fsSL "https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe" -o "tailscale-setup.exe"
         Start-Process -FilePath ".\tailscale-setup.exe" -ArgumentList "/quiet /norestart" -Wait
         Start-Sleep -Seconds 6
@@ -138,7 +149,7 @@ jobs:
 
         Write-Host "Authenticating with Tailscale WireGuard Network..." -ForegroundColor Cyan
         $authKey = "${{ github.event.inputs.tunnel_token }}".Trim()
-        & $tailscalePath up --authkey=$authKey --hostname=titan-cloud-pc --accept-routes
+        & $tailscalePath up --authkey=$authKey --hostname=titan-cloud-pc --accept-routes --reset
         Start-Sleep -Seconds 6
 
         $ip = ""
@@ -175,9 +186,67 @@ jobs:
         $info | Out-File -FilePath "titan_connect.json" -Encoding utf8
 
     # =========================================================================
-    # STEP 4B: NGROK TUNNEL (FALLBACK)
+    # STEP 4B: PINGGY DIRECT PUBLIC TUNNEL (ZERO CLIENT INSTALL - ZERO CARD)
     # =========================================================================
-    - name: 4B. Setup Ngrok Tunnel (Requires Credit Card on Ngrok)
+    - name: 4B. Setup Pinggy Direct Public Tunnel (Zero Client Install)
+      if: github.event.inputs.tunnel_provider == 'pinggy'
+      run: |
+        Write-Host "Starting Pinggy Instant Public TCP Tunnel..." -ForegroundColor Cyan
+        Start-Process -FilePath "ssh" -ArgumentList "-p 443 -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -R0:localhost:3389 tcp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -RedirectStandardError "pinggy_err.log" -NoNewWindow
+        Start-Sleep -Seconds 8
+
+        $publicUrl = $null
+        $maxRetries = 15
+        $retry = 0
+        while ($retry -lt $maxRetries -and -not $publicUrl) {
+            if (Test-Path "pinggy.log") {
+                $lines = Get-Content "pinggy.log"
+                foreach ($line in $lines) {
+                    if ($line -match "tcp://([^:\s]+):([0-9]+)") {
+                        $publicUrl = $matches[0]
+                        $pHost = $matches[1]
+                        $pPort = $matches[2]
+                        break
+                    }
+                }
+            }
+            if (-not $publicUrl) { Start-Sleep -Seconds 2 }
+            $retry++
+        }
+
+        if (-not $publicUrl) {
+            Write-Error "Failed to extract Pinggy tunnel. Check logs:"
+            if (Test-Path "pinggy.log") { Get-Content "pinggy.log" }
+            if (Test-Path "pinggy_err.log") { Get-Content "pinggy_err.log" }
+            exit 1
+        }
+
+        Write-Host "======================================================" -ForegroundColor Green
+        Write-Host ">>>TITAN_ENDPOINT_START<<<$publicUrl>>>TITAN_ENDPOINT_END<<<" -ForegroundColor Green
+        Write-Host "TITAN_PROVIDER: PINGGY (Direct Public Tunnel - No Client Needed)" -ForegroundColor Cyan
+        Write-Host "TITAN_HOST: $pHost" -ForegroundColor Yellow
+        Write-Host "TITAN_PORT: $pPort" -ForegroundColor Yellow
+        Write-Host "TITAN_USER: runneradmin" -ForegroundColor Yellow
+        Write-Host "TITAN_PASS: TitanCloud2026!" -ForegroundColor Yellow
+        Write-Host "======================================================" -ForegroundColor Green
+
+        $info = @{
+          endpoint = $publicUrl
+          provider = "pinggy"
+          host = $pHost
+          port = $pPort
+          username = "runneradmin"
+          password = "TitanCloud2026!"
+          specs = "16GB RAM / 4 vCPUs / 256GB SSD (60 FPS Unlocked)"
+          status = "ONLINE"
+          author = "M11 Dev - Mohamed"
+        } | ConvertTo-Json
+        $info | Out-File -FilePath "titan_connect.json" -Encoding utf8
+
+    # =========================================================================
+    # STEP 4C: NGROK TUNNEL (FALLBACK)
+    # =========================================================================
+    - name: 4C. Setup Ngrok Tunnel (Requires Credit Card on Ngrok)
       if: github.event.inputs.tunnel_provider == 'ngrok'
       run: |
         Write-Host "Downloading Ngrok v3 Engine..." -ForegroundColor Cyan
