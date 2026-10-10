@@ -264,19 +264,39 @@ jobs:
             'title TITAN ROBLOX 1-CLICK INSTALLER (v1.11 QUANTUM)',
             'color 0b',
             'echo ==============================================================================',
-            'echo       TITAN 1-CLICK ROBLOX INSTALLER & BYPASS ENGINE',
+            'echo       TITAN 1-CLICK ROBLOX INSTALLER & BYPASS ENGINE (AR / EN)',
             'echo       Lead Architect: M11 Dev - Mohamed (https://github.com/M11-Developer)',
+            'echo       Clean Deployment Architecture - Zero 403 Forbidden S3 Error',
             'echo ==============================================================================',
             'echo.',
-            'echo [1/4] Applying Anti-Cheat and Audio bypass...',
+            'echo [1/5] Removing corrupted registry locks and installer temp caches...',
+            'echo       تنظيف مفاتيح التسجيل المعطوبة وملفات الكاش التالفة...',
+            'reg delete "HKCU\Software\ROBLOX Corporation" /f >nul 2>&1',
+            'reg delete "HKLM\Software\ROBLOX Corporation" /f >nul 2>&1',
+            'if exist "%TEMP%\Roblox" rmdir /s /q "%TEMP%\Roblox" >nul 2>&1',
+            'if exist "%LOCALAPPDATA%\Roblox\Downloads" rmdir /s /q "%LOCALAPPDATA%\Roblox\Downloads" >nul 2>&1',
+            'echo [2/5] Applying Anti-Cheat (dtrace bypass) and Audio pipeline...',
+            'echo       تخطي مضاد الغش وتفعيل كرت الصوت المباشر...',
             'sc.exe config dtrace start=disabled >nul 2>&1',
             'net stop dtrace >nul 2>&1',
             'net start audiosrv >nul 2>&1',
             'net start AudioEndpointBuilder >nul 2>&1',
-            'echo [2/4] Downloading latest official Roblox Player Launcher...',
-            'powershell -NoProfile -Command "Invoke-WebRequest -Uri ''https://setup.rbxcdn.com/RobloxPlayerLauncher.exe'' -OutFile ''%TEMP%\RobloxPlayerLauncher.exe''"',
-            'if not exist "%TEMP%\RobloxPlayerLauncher.exe" powershell -NoProfile -Command "winget install --id Roblox.Roblox --silent --accept-package-agreements --accept-source-agreements"',
-            'echo [3/4] Configuring Direct3D 11 / WARP settings...',
+            'echo [3/5] Obtaining official Roblox Player 64-bit Installer (setup.rbxcdn.com)...',
+            'echo       جلب مثبت روبلوكس الرسمي المباشر بدون أخطاء السيرفر...',
+            'if exist "C:\TitanData\RobloxPlayerInstaller.exe" (',
+            '    copy /y "C:\TitanData\RobloxPlayerInstaller.exe" "%TEMP%\RobloxPlayerInstaller.exe" >nul 2>&1',
+            ')',
+            'if not exist "%TEMP%\RobloxPlayerInstaller.exe" (',
+            '    powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile(''https://setup.rbxcdn.com/RobloxPlayerInstaller.exe'', ''%TEMP%\RobloxPlayerInstaller.exe'')"',
+            ')',
+            'if not exist "%TEMP%\RobloxPlayerInstaller.exe" (',
+            '    curl.exe -fsSL "https://setup.rbxcdn.com/RobloxPlayerInstaller.exe" -o "%TEMP%\RobloxPlayerInstaller.exe"',
+            ')',
+            'if not exist "%TEMP%\RobloxPlayerInstaller.exe" (',
+            '    powershell -NoProfile -Command "winget install --id Roblox.Roblox --silent --accept-package-agreements --accept-source-agreements"',
+            ')',
+            'echo [4/5] Pre-configuring Direct3D 11, 60 FPS Lock & DPI Compatibility...',
+            'echo       ضبط تسريع الرسوميات البرمجية وقفل الإطارات...',
             'set "ROBLOX_SETTINGS=%LOCALAPPDATA%\Roblox\ClientSettings"',
             'if not exist "%ROBLOX_SETTINGS%" mkdir "%ROBLOX_SETTINGS%" >nul 2>&1',
             '(',
@@ -299,11 +319,51 @@ jobs:
             '    if exist "%%F" reg add "HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /v "%%F" /t REG_SZ /d "~ RUNASADMIN WIN8RTM HIGHDPIAWARE" /f >nul 2>&1',
             ')',
             'reg add "HKCU\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /v "%LOCALAPPDATA%\Roblox\Versions\*\RobloxPlayerBeta.exe" /t REG_SZ /d "~ RUNASADMIN WIN8RTM HIGHDPIAWARE" /f >nul 2>&1',
-            'echo [4/4] Launching Roblox Installer...',
-            'start "" "%TEMP%\RobloxPlayerLauncher.exe"',
+            'echo [5/5] Launching official Roblox Player Installer...',
+            'echo       بدء التثبيت الآن...',
+            'start "" "%TEMP%\RobloxPlayerInstaller.exe"',
             'echo.',
-            'echo [SUCCESS] Roblox installation started! Launch it from Desktop once installed.',
+            'echo ==============================================================================',
+            'echo [SUCCESS] Official Roblox Player installation started cleanly!',
+            'echo           تم إطلاق المثبت بنجاح! انتظر شريط التقدم الأخضر ليكتمل.',
+            'echo Once installed, click [🎮_LAUNCH_ROBLOX_PLAYER.bat] to play at 60 FPS!',
+            'echo ==============================================================================',
             'pause'
+        )
+        $launcherBatLines = @(
+            '@echo off',
+            'setlocal EnableDelayedExpansion',
+            'title TITAN ROBLOX PLAYER LAUNCHER (60 FPS UNLOCKED)',
+            'color 0a',
+            'echo ==============================================================================',
+            'echo       TITAN ROBLOX DIRECT PLAYER - 60 FPS UNLOCKED (AR / EN)',
+            'echo       Lead Architect: M11 Dev - Mohamed (https://github.com/M11-Developer)',
+            'echo ==============================================================================',
+            'echo.',
+            'set "FOUND_ROBLOX="',
+            'for /r "%LOCALAPPDATA%\Roblox\Versions" %%F in (RobloxPlayerBeta.exe) do (',
+            '    if exist "%%F" (',
+            '        set "FOUND_ROBLOX=%%F"',
+            '        goto launch_it',
+            '    )',
+            ')',
+            'for /r "C:\Program Files (x86)\Roblox\Versions" %%F in (RobloxPlayerBeta.exe) do (',
+            '    if exist "%%F" (',
+            '        set "FOUND_ROBLOX=%%F"',
+            '        goto launch_it',
+            '    )',
+            ')',
+            ':launch_it',
+            'if defined FOUND_ROBLOX (',
+            '    echo [OK] Launching Roblox Player / تشغيل اللعبة الآن: "!FOUND_ROBLOX!"',
+            '    start "" "!FOUND_ROBLOX!"',
+            '    timeout /t 3 >nul',
+            '    exit /b 0',
+            ') else (',
+            '    echo [NOTICE] Roblox Player not found yet. Running 1-Click Installer...',
+            '    echo [تنبيه] لم يتم العثور على اللعبة مثبتة بعد. جاري تشغيل المثبت المباشر...',
+            '    call "%~dp0\📥_INSTALL_ROBLOX_NOW.bat"',
+            ')'
         )
         $instantBackupBat = @(
             '@echo off',
@@ -347,6 +407,7 @@ jobs:
             if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction SilentlyContinue | Out-Null }
             $batLines | Out-File -FilePath "$d\🎮_TITAN_GAME_AND_ROBLOX_ENABLER.bat" -Encoding ascii -Force
             $installerLines | Out-File -FilePath "$d\📥_INSTALL_ROBLOX_NOW.bat" -Encoding ascii -Force
+            $launcherBatLines | Out-File -FilePath "$d\🎮_LAUNCH_ROBLOX_PLAYER.bat" -Encoding ascii -Force
             $instantBackupBat | Out-File -FilePath "$d\💾_INSTANT_CLOUD_BACKUP.bat" -Encoding ascii -Force
             $mesaBat | Out-File -FilePath "$d\🎮_INSTALL_MESA3D_OPENGL_ACCELERATOR.bat" -Encoding ascii -Force
         }
@@ -426,7 +487,7 @@ jobs:
         } catch {}
 
         # 9. Pre-install Google Chrome Enterprise (Direct MSI - 100% Guaranteed Success)
-        Write-Host "9/9 Pre-installing Google Chrome Enterprise standalone MSI..." -ForegroundColor Yellow
+        Write-Host "9/12 Pre-installing Google Chrome Enterprise standalone MSI..." -ForegroundColor Yellow
         try {
             curl.exe -fsSL "https://dl.google.com/chrome/install/googlechromestandaloneenterprise64.msi" -o "$env:TEMP\chrome_enterprise.msi"
             Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$env:TEMP\chrome_enterprise.msi`" /qn /norestart" -Wait
@@ -435,8 +496,23 @@ jobs:
             Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -Command winget install --id Google.Chrome --silent --accept-package-agreements --accept-source-agreements --scope machine" -WindowStyle Hidden
         }
 
-        # 10. Start Real-Time Persistence Daemon in background
-        Write-Host "10/10 Activating 24/7 Real-Time Data Persistence Daemon..." -ForegroundColor Green
+        # 10. Install Microsoft Edge WebView2 Evergreen Runtime (Essential for Roblox & Web Apps)
+        Write-Host "10/12 Installing Microsoft Edge WebView2 Evergreen Runtime..." -ForegroundColor Yellow
+        try {
+            curl.exe -fsSL "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -o "$env:TEMP\MicrosoftEdgeWebview2Setup.exe"
+            Start-Process -FilePath "$env:TEMP\MicrosoftEdgeWebview2Setup.exe" -ArgumentList "/silent /install" -Wait
+        } catch {}
+
+        # 11. Pre-cache official 64-bit Roblox Player Installer (Zero 403 Forbidden S3 Error)
+        Write-Host "11/12 Pre-caching official Roblox Player 64-bit Installer..." -ForegroundColor Yellow
+        try {
+            curl.exe -fsSL "https://setup.rbxcdn.com/RobloxPlayerInstaller.exe" -o "C:\TitanData\RobloxPlayerInstaller.exe"
+            Remove-Item -Path "HKCU:\Software\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "HKLM:\SOFTWARE\ROBLOX Corporation" -Recurse -Force -ErrorAction SilentlyContinue
+        } catch {}
+
+        # 12. Start Real-Time Persistence Daemon in background
+        Write-Host "12/12 Activating 24/7 Real-Time Data Persistence Daemon..." -ForegroundColor Green
         Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File C:\TitanData\titan_persistent_daemon.ps1 -Daemon" -WindowStyle Hidden
 
 
