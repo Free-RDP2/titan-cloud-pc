@@ -71,9 +71,10 @@ jobs:
         # 2. Enable RDP in Registry
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         
-        # 3. DISABLE NLA (Network Level Authentication)
+        # 3. DISABLE NLA & SET NATIVE RDP SECURITY (Zero TLS/Certificate Handshake Failure)
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 1
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fSingleSessionPerUser" -Value 0
         
         # 4. UNLOCK 60 FPS IN RDP (Default Windows RDP is capped at 30 FPS!)
         New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Force -ErrorAction SilentlyContinue | Out-Null
@@ -88,7 +89,7 @@ jobs:
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "VisualQuality" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxMonitors" -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
         
-        # 6. Set runneradmin user credentials safely via pure PowerShell & ADSI (No legacy net.exe)
+        # 6. Set runneradmin user credentials & add to RDP groups (Dual Engine PowerShell + Net)
         $plainPass = "TitanM11#2026"
         $secPass = ConvertTo-SecureString $plainPass -AsPlainText -Force
         try {
@@ -99,10 +100,26 @@ jobs:
             $userObj.SetPassword($plainPass)
             $userObj.SetInfo()
         } catch {}
+        net user runneradmin "TitanM11#2026" /active:yes
+        try {
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
+            Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
+        } catch {}
+        net localgroup "Remote Desktop Users" runneradmin /add
+        net localgroup "Administrators" runneradmin /add
         
-        # 7. Restart TermService to bind port 3389 with new unauthenticated 60 FPS settings
+        # 7. Start supporting RDS services & restart TermService
+        Set-Service -Name "SessionEnv" -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name "SessionEnv" -ErrorAction SilentlyContinue
+        Set-Service -Name "UmRdpService" -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name "UmRdpService" -ErrorAction SilentlyContinue
         Set-Service -Name "TermService" -StartupType Automatic -ErrorAction SilentlyContinue
         Restart-Service -Name "TermService" -Force -ErrorAction SilentlyContinue
+        
+        # 8. Extra firewall unblock for Port 3389
+        netsh advfirewall firewall set rule group="remote desktop" new enable=Yes
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+        New-NetFirewallRule -DisplayName "Titan RDP Allow" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
         
         # 8. Loop-check that port 3389 is actively listening locally
         $listening = $false
